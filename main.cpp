@@ -3,5 +3,5 @@
 
 int main() 
 {
-	return call_HelloTriangleApplication();
+    return call_HelloTriangleApplication();
 }
