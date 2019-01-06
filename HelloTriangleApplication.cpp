@@ -32,6 +32,7 @@ void HelloTriangleApplication::init_vulkan()
     {
         init_setup_callback();
     }
+    create_KHR_surface();
     pick_graphic_card();
     create_logical_device();
 }
@@ -175,6 +176,14 @@ void HelloTriangleApplication::create_VK_instance()
         throw runtime_error("Failed to create Instance! Stupid...\n");
 }
 
+void HelloTriangleApplication::create_KHR_surface()
+{
+    VkWin32SurfaceCreateInfoKHR createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
+    createInfo.hwnd = glfwGetWin32Window(m_window);
+    createInfo.hinstance = GetModuleHandle(nullptr);
+}
+
 bool HelloTriangleApplication::check_validation_layers_support()
 {
     uint32_t layers_count;
@@ -246,12 +255,12 @@ vector<const char*> HelloTriangleApplication::get_required_extensions() {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-//    cout << "GLFW required extensions:" << endl;
+    cout << "GLFW required extensions:" << endl;
 
-//    for (const auto& extension : extensions)
-//    {
-//        cout << "  " << extension << endl;
-//    }
+    for (const auto& extension : extensions)
+    {
+        cout << "  " << extension << endl;
+    }
 
     if (!compare_extensions(glfw_extensions, glfw_extensions_count))
     {
@@ -316,11 +325,11 @@ bool HelloTriangleApplication::compare_extensions(const char** glfw_extensions, 
         }
     }
 
-//    cout << "VK available extensions:" << endl;
-//    for (const auto& extension : vk_extensions)
-//    {
-//        cout << "   " << extension.extensionName << endl;
-//    }
+    cout << "VK available extensions:" << endl;
+    for (const auto& extension : vk_extensions)
+    {
+        cout << "   " << extension.extensionName << endl;
+    }
 
     return result;
 }

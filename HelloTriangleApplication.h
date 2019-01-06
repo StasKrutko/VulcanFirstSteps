@@ -1,5 +1,6 @@
 #pragma once
 
+#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
 #include <iostream>
@@ -8,8 +9,10 @@
 #include <cstdlib>
 #include <optional>
 
+#define GLFW_EXPOSE_NATIVE_WIN32
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
+#include <GLFW/glfw3native.h>
 
 constexpr auto WINDOW_WIDTH = 800;
 constexpr auto WINDOW_HEIGHT = 600;
@@ -32,14 +35,27 @@ public:
 
 	void run();
 private:
+
+    struct QueueFamilyIndex
+    {
+        std::optional<uint32_t> m_queue_family_index;
+
+        bool is_index_complete()
+        {
+            return m_queue_family_index.has_value();
+        }
+    };
+
     void init_window();
     void init_vulkan();
     void init_setup_callback();
     void pick_graphic_card();
     void create_logical_device();
+    void create_VK_instance();
+    void create_KHR_surface();
     void execute_main_loop();
     void cleanup();
-    void create_VK_instance();
+
 
     bool check_validation_layers_support();
     bool check_device_suitability(VkPhysicalDevice device);
@@ -72,6 +88,8 @@ private:
     VkDevice m_device;
     std::optional< uint32_t > m_queue_family_index;
     VkQueue m_device_queue;
+
+    VkSurfaceKHR m_surface;
 };
 
 int call_HelloTriangleApplication();
