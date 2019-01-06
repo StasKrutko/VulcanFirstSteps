@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include <functional>
 #include <cstdlib>
+#include <optional>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -35,6 +36,7 @@ private:
     void init_vulkan();
     void init_setup_callback();
     void pick_graphic_card();
+    void create_logical_device();
     void execute_main_loop();
     void cleanup();
     void create_VK_instance();
@@ -67,6 +69,9 @@ private:
 
     VkDebugUtilsMessengerEXT m_callback;
     VkPhysicalDevice m_gpu;
+    VkDevice m_device;
+    std::optional< uint32_t > m_queue_family_index;
+    VkQueue m_device_queue;
 };
 
 int call_HelloTriangleApplication();

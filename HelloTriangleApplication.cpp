@@ -33,6 +33,7 @@ void HelloTriangleApplication::init_vulkan()
         init_setup_callback();
     }
     pick_graphic_card();
+    create_logical_device();
 }
 
 void HelloTriangleApplication::init_setup_callback()
@@ -79,6 +80,41 @@ void HelloTriangleApplication::pick_graphic_card()
     }
 }
 
+void HelloTriangleApplication::create_logical_device()
+{
+    VkDeviceQueueCreateInfo queue_create_info = {};
+    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+    queue_create_info.queueFamilyIndex = m_queue_family_index.value();
+    queue_create_info.queueCount = 1;
+    float queuePriority = 1.0f;
+    queue_create_info.pQueuePriorities = &queuePriority;
+
+    VkPhysicalDeviceFeatures device_features = {};
+
+    VkDeviceCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
+    create_info.pQueueCreateInfos = &queue_create_info;
+    create_info.queueCreateInfoCount = 1;
+    create_info.pEnabledFeatures = &device_features;
+
+    if (ENABLE_VALIDATION_LAYERS)
+    {
+        create_info.enabledLayerCount = static_cast<uint32_t>(VALIDATION_LAYERS.size());
+        create_info.ppEnabledLayerNames = VALIDATION_LAYERS.data();
+    }
+    else
+    {
+        create_info.enabledLayerCount = 0;
+    }
+
+    if (vkCreateDevice(m_gpu, &create_info, nullptr, &m_device) != VK_SUCCESS)
+    {
+        throw std::runtime_error("Failed to create logical device!");
+    }
+
+    vkGetDeviceQueue(m_device, m_queue_family_index.value(), 0, &m_device_queue);
+}
+
 void HelloTriangleApplication::execute_main_loop()
 {
     while (!glfwWindowShouldClose(m_window))
@@ -93,6 +129,7 @@ void HelloTriangleApplication::cleanup()
     {
         destroy_debug_utils_messenger_EXT(m_instance, m_callback, nullptr);
     }
+    vkDestroyDevice(m_device, nullptr);
     vkDestroyInstance(m_instance, nullptr);
 
     glfwDestroyWindow(m_window);
@@ -186,18 +223,16 @@ bool HelloTriangleApplication::check_device_queue_families(VkPhysicalDevice devi
     vector<VkQueueFamilyProperties> props(queue_family_count);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, props.data());
 
-    bool is_supported = false;
-
-    for (const auto& queue_family_prop : props) 
+    for (int i = 0; i < props.size(); ++i)
     {
-        if (queue_family_prop.queueCount > 0 && queue_family_prop.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        if (props[i].queueCount > 0 && props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
         {
-            is_supported = true;
+            m_queue_family_index = i;
             break;
         }
     }
 
-    return is_supported;
+    return m_queue_family_index.has_value();
 }
 
 vector<const char*> HelloTriangleApplication::get_required_extensions() {
