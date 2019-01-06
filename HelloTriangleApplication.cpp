@@ -4,6 +4,11 @@
 
 using namespace std;
 
+HelloTriangleApplication::HelloTriangleApplication()
+    : m_gpu(VK_NULL_HANDLE)
+{
+}
+
 void HelloTriangleApplication::run()
 {
     init_window();
@@ -27,11 +32,12 @@ void HelloTriangleApplication::init_vulkan()
     {
         init_setup_callback();
     }
+    pick_graphic_card();
 }
 
 void HelloTriangleApplication::init_setup_callback()
 {
-    VkDebugUtilsMessengerCreateInfoEXT debug_info;
+    VkDebugUtilsMessengerCreateInfoEXT debug_info = {};
     debug_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
     debug_info.messageSeverity =  VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
                                 | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
@@ -45,6 +51,31 @@ void HelloTriangleApplication::init_setup_callback()
     if ( create_debug_utils_messenger_EXT(m_instance, &debug_info, nullptr, &m_callback) != VK_SUCCESS)
     {
         throw runtime_error("Failed to create DEBUG layer!");
+    }
+}
+
+void HelloTriangleApplication::pick_graphic_card()
+{
+    uint32_t devices_count;
+    vkEnumeratePhysicalDevices(m_instance, &devices_count, nullptr);
+    if (devices_count == 0)
+    {
+        throw std::runtime_error("Failed to find physical devices!");
+    }
+    vector<VkPhysicalDevice> devices(devices_count);
+    vkEnumeratePhysicalDevices(m_instance, &devices_count, devices.data());
+    for (const auto& device : devices)
+    {
+        if ( check_device_suitability( device ) )
+        {
+            m_gpu = device;
+            break;
+        }
+    }
+
+    if (m_gpu == VK_NULL_HANDLE)
+    {
+        throw std::runtime_error("Could not find suitable physical device!");
     }
 }
 
@@ -132,6 +163,41 @@ bool HelloTriangleApplication::check_validation_layers_support()
     }
 
     return true;
+}
+
+bool HelloTriangleApplication::check_device_suitability(VkPhysicalDevice device)
+{
+    VkPhysicalDeviceProperties props = {};
+    VkPhysicalDeviceFeatures features = {};
+    vkGetPhysicalDeviceProperties(device, &props);
+    vkGetPhysicalDeviceFeatures(device, &features);
+
+    bool result = (strstr(props.deviceName, "GeForce") != NULL && 
+                   features.geometryShader && 
+                   check_device_queue_families(device));
+
+    return result;
+}
+
+bool HelloTriangleApplication::check_device_queue_families(VkPhysicalDevice device)
+{
+    uint32_t queue_family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
+    vector<VkQueueFamilyProperties> props(queue_family_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, props.data());
+
+    bool is_supported = false;
+
+    for (const auto& queue_family_prop : props) 
+    {
+        if (queue_family_prop.queueCount > 0 && queue_family_prop.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+        {
+            is_supported = true;
+            break;
+        }
+    }
+
+    return is_supported;
 }
 
 vector<const char*> HelloTriangleApplication::get_required_extensions() {

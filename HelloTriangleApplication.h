@@ -26,7 +26,7 @@ const std::vector<const char*> VALIDATION_LAYERS = {
 class HelloTriangleApplication
 {
 public:
-	HelloTriangleApplication() = default;
+    HelloTriangleApplication();
 	~HelloTriangleApplication() = default;
 
 	void run();
@@ -34,11 +34,14 @@ private:
     void init_window();
     void init_vulkan();
     void init_setup_callback();
+    void pick_graphic_card();
     void execute_main_loop();
     void cleanup();
     void create_VK_instance();
 
     bool check_validation_layers_support();
+    bool check_device_suitability(VkPhysicalDevice device);
+    bool check_device_queue_families(VkPhysicalDevice device);
     std::vector<const char*> get_required_extensions();
 
     VkResult create_debug_utils_messenger_EXT(VkInstance instance,
@@ -63,6 +66,7 @@ private:
     GLFWwindow* m_window;
 
     VkDebugUtilsMessengerEXT m_callback;
+    VkPhysicalDevice m_gpu;
 };
 
 int call_HelloTriangleApplication();
