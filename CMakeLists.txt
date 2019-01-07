@@ -63,6 +63,5 @@ endif(UNIX)
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
     ${VULKAN_SDK}
-    $ENV{GLM_INCLUDE_DIRS}
     ${GLFW_LIB}
     )
