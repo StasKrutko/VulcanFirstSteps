@@ -1,5 +1,8 @@
-#include "HelloTriangleApplication.h"
-#include <vector>
+#include "HelloTriangle_platform.hpp"
+#include <iostream>
+#include <stdexcept>
+#include <functional>
+#include <cstdlib>
 #include <cstring>
 
 using namespace std;
@@ -81,11 +84,53 @@ void HelloTriangleApplication::pick_graphic_card()
     }
 }
 
+HelloTriangleApplication::QueueFamilyIndex HelloTriangleApplication::find_queue_families(VkPhysicalDevice device)
+{
+    QueueFamilyIndex indices;
+
+    uint32_t queue_family_count = 0;
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
+
+    vector<VkQueueFamilyProperties> queue_families(queue_family_count);
+    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_families.data());
+
+    VkBool32 present_support = false;
+    try {
+        vkGetPhysicalDeviceSurfaceSupportKHR(device, 0, m_surface, &present_support);
+
+    } catch(const exception& e) {
+        cerr << e.what() << endl;
+    }
+
+    for (int i = 0; i < queue_families.size(); ++i)
+    {
+        if (vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &present_support) != VK_SUCCESS)
+        {
+            throw std::runtime_error("Failed to check for surface compatability!");
+        }
+        if (queue_families[i].queueCount > 0 &&
+            queue_families[i].queueFlags & VK_QUEUE_GRAPHICS_BIT &&
+            present_support)
+        {
+            indices.m_graphics_family = i;
+            indices.m_present_family = i;
+        }
+
+        if (indices.is_index_complete())
+        {
+            break;
+        }
+    }
+
+    return indices;
+}
+
 void HelloTriangleApplication::create_logical_device()
 {
+    auto family_indeces = find_queue_families(m_gpu);
     VkDeviceQueueCreateInfo queue_create_info = {};
     queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.queueFamilyIndex = m_queue_family_index.value();
+    queue_create_info.queueFamilyIndex = family_indeces.m_graphics_family.value();
     queue_create_info.queueCount = 1;
     float queuePriority = 1.0f;
     queue_create_info.pQueuePriorities = &queuePriority;
@@ -113,7 +158,7 @@ void HelloTriangleApplication::create_logical_device()
         throw std::runtime_error("Failed to create logical device!");
     }
 
-    vkGetDeviceQueue(m_device, m_queue_family_index.value(), 0, &m_device_queue);
+    vkGetDeviceQueue(m_device, family_indeces.m_graphics_family.value(), 0, &m_device_queue);
 }
 
 void HelloTriangleApplication::execute_main_loop()
@@ -126,11 +171,12 @@ void HelloTriangleApplication::execute_main_loop()
 
 void HelloTriangleApplication::cleanup()
 {
+    vkDestroyDevice(m_device, nullptr);
     if (ENABLE_VALIDATION_LAYERS)
     {
         destroy_debug_utils_messenger_EXT(m_instance, m_callback, nullptr);
     }
-    vkDestroyDevice(m_device, nullptr);
+    vkDestroySurfaceKHR(m_instance, m_surface, nullptr);
     vkDestroyInstance(m_instance, nullptr);
 
     glfwDestroyWindow(m_window);
@@ -176,14 +222,6 @@ void HelloTriangleApplication::create_VK_instance()
         throw runtime_error("Failed to create Instance! Stupid...\n");
 }
 
-void HelloTriangleApplication::create_KHR_surface()
-{
-    VkWin32SurfaceCreateInfoKHR createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_WIN32_SURFACE_CREATE_INFO_KHR;
-    createInfo.hwnd = glfwGetWin32Window(m_window);
-    createInfo.hinstance = GetModuleHandle(nullptr);
-}
-
 bool HelloTriangleApplication::check_validation_layers_support()
 {
     uint32_t layers_count;
@@ -213,35 +251,8 @@ bool HelloTriangleApplication::check_validation_layers_support()
 
 bool HelloTriangleApplication::check_device_suitability(VkPhysicalDevice device)
 {
-    VkPhysicalDeviceProperties props = {};
-    VkPhysicalDeviceFeatures features = {};
-    vkGetPhysicalDeviceProperties(device, &props);
-    vkGetPhysicalDeviceFeatures(device, &features);
-
-    bool result = (strstr(props.deviceName, "GeForce") != NULL && 
-                   features.geometryShader && 
-                   check_device_queue_families(device));
-
-    return result;
-}
-
-bool HelloTriangleApplication::check_device_queue_families(VkPhysicalDevice device)
-{
-    uint32_t queue_family_count = 0;
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, nullptr);
-    vector<VkQueueFamilyProperties> props(queue_family_count);
-    vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, props.data());
-
-    for (int i = 0; i < props.size(); ++i)
-    {
-        if (props[i].queueCount > 0 && props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT)
-        {
-            m_queue_family_index = i;
-            break;
-        }
-    }
-
-    return m_queue_family_index.has_value();
+    QueueFamilyIndex indeces = find_queue_families(device);
+    return indeces.is_index_complete();
 }
 
 vector<const char*> HelloTriangleApplication::get_required_extensions() {
@@ -251,16 +262,17 @@ vector<const char*> HelloTriangleApplication::get_required_extensions() {
 
     vector<const char*> extensions(glfw_extensions, glfw_extensions + glfw_extensions_count);
 
-    if (ENABLE_VALIDATION_LAYERS) {
+    if (ENABLE_VALIDATION_LAYERS)
+    {
         extensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
     }
 
-    cout << "GLFW required extensions:" << endl;
+//    cout << "GLFW required extensions:" << endl;
 
-    for (const auto& extension : extensions)
-    {
-        cout << "  " << extension << endl;
-    }
+//    for (const auto& extension : extensions)
+//    {
+//        cout << "  " << extension << endl;
+//    }
 
     if (!compare_extensions(glfw_extensions, glfw_extensions_count))
     {
@@ -325,11 +337,11 @@ bool HelloTriangleApplication::compare_extensions(const char** glfw_extensions, 
         }
     }
 
-    cout << "VK available extensions:" << endl;
-    for (const auto& extension : vk_extensions)
-    {
-        cout << "   " << extension.extensionName << endl;
-    }
+//    cout << "VK available extensions:" << endl;
+//    for (const auto& extension : vk_extensions)
+//    {
+//        cout << "   " << extension.extensionName << endl;
+//    }
 
     return result;
 }

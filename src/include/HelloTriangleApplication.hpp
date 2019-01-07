@@ -1,16 +1,13 @@
 #pragma once
 
-#define VK_USE_PLATFORM_WIN32_KHR
+//#define VK_USE_PLATFORM_WIN32_KHR
 #include <vulkan/vulkan.h>
 
-#include <iostream>
-#include <stdexcept>
-#include <functional>
-#include <cstdlib>
 #include <optional>
+#include <vector>
 
-#define GLFW_EXPOSE_NATIVE_WIN32
-#define GLFW_INCLUDE_VULKAN
+//#define GLFW_EXPOSE_NATIVE_WIN32
+//#define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
@@ -38,11 +35,12 @@ private:
 
     struct QueueFamilyIndex
     {
-        std::optional<uint32_t> m_queue_family_index;
+        std::optional<uint32_t> m_graphics_family;
+        std::optional<uint32_t> m_present_family;
 
         bool is_index_complete()
         {
-            return m_queue_family_index.has_value();
+            return m_graphics_family.has_value() && m_present_family.has_value();
         }
     };
 
@@ -50,6 +48,7 @@ private:
     void init_vulkan();
     void init_setup_callback();
     void pick_graphic_card();
+    QueueFamilyIndex find_queue_families(VkPhysicalDevice device);
     void create_logical_device();
     void create_VK_instance();
     void create_KHR_surface();
@@ -59,7 +58,6 @@ private:
 
     bool check_validation_layers_support();
     bool check_device_suitability(VkPhysicalDevice device);
-    bool check_device_queue_families(VkPhysicalDevice device);
     std::vector<const char*> get_required_extensions();
 
     VkResult create_debug_utils_messenger_EXT(VkInstance instance,
@@ -86,8 +84,8 @@ private:
     VkDebugUtilsMessengerEXT m_callback;
     VkPhysicalDevice m_gpu;
     VkDevice m_device;
-    std::optional< uint32_t > m_queue_family_index;
     VkQueue m_device_queue;
+    VkQueue m_present_queue;
 
     VkSurfaceKHR m_surface;
 };
