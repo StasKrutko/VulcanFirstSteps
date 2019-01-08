@@ -4,8 +4,7 @@
 #include <functional>
 #include <cstdlib>
 #include <cstring>
-
-using namespace std;
+#include <set>
 
 HelloTriangleApplication::HelloTriangleApplication()
     : m_gpu(VK_NULL_HANDLE)
@@ -94,16 +93,10 @@ HelloTriangleApplication::QueueFamilyIndex HelloTriangleApplication::find_queue_
     vector<VkQueueFamilyProperties> queue_families(queue_family_count);
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_families.data());
 
-    VkBool32 present_support = false;
-    try {
-        vkGetPhysicalDeviceSurfaceSupportKHR(device, 0, m_surface, &present_support);
-
-    } catch(const exception& e) {
-        cerr << e.what() << endl;
-    }
 
     for (int i = 0; i < queue_families.size(); ++i)
     {
+        VkBool32 present_support = false;
         if (vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &present_support) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to check for surface compatability!");
@@ -125,23 +118,80 @@ HelloTriangleApplication::QueueFamilyIndex HelloTriangleApplication::find_queue_
     return indices;
 }
 
+HelloTriangleApplication::SwapChainSupportDetails HelloTriangleApplication::query_swapchain_support(VkPhysicalDevice device)
+{
+    SwapChainSupportDetails details;
+    vkGetPhysicalDeviceSurfaceCapabilitiesKHR(device, m_surface, &(details.m_capabilities));
+
+    uint32_t formats_count;
+    vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &formats_count, nullptr);
+
+    if (formats_count != 0)
+    {
+        details.m_formats.resize(formats_count);
+        vkGetPhysicalDeviceSurfaceFormatsKHR(device, m_surface, &formats_count, details.m_formats.data());
+    }
+
+    uint32_t present_modes_count;
+    vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_modes_count, nullptr);
+
+    if (present_modes_count != 0)
+    {
+        details.m_present_modes.resize(formats_count);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_modes_count, details.m_present_modes.data());
+    }
+
+    return details;
+}
+
+VkSurfaceFormatKHR HelloTriangleApplication::choose_swap_surface_format(const vector<VkSurfaceFormatKHR> &available_formats)
+{
+    if (available_formats.size() == 1 && available_formats[0].format == VK_FORMAT_UNDEFINED)
+    {
+        return {VK_FORMAT_B8G8R8A8_UNORM, VK_COLOR_SPACE_SRGB_NONLINEAR_KHR};
+    }
+
+    for (const auto& format : available_formats)
+    {
+        if (format.format == VK_FORMAT_B8G8R8A8_UNORM && format.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR)
+        {
+            return format;
+        }
+    }
+    return available_formats[0];
+}
+
 void HelloTriangleApplication::create_logical_device()
 {
     auto family_indeces = find_queue_families(m_gpu);
-    VkDeviceQueueCreateInfo queue_create_info = {};
-    queue_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
-    queue_create_info.queueFamilyIndex = family_indeces.m_graphics_family.value();
-    queue_create_info.queueCount = 1;
-    float queuePriority = 1.0f;
-    queue_create_info.pQueuePriorities = &queuePriority;
+
+    vector<VkDeviceQueueCreateInfo> queue_create_infos;
+    set<uint32_t> unique_queue_families =
+    {
+        family_indeces.m_graphics_family.value(),
+        family_indeces.m_present_family.value()
+    };
+
+    float queue_priority = 1.0f;
+    for (uint32_t queue_family : unique_queue_families)
+    {
+        VkDeviceQueueCreateInfo create_info = {};
+        create_info.sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
+        create_info.queueFamilyIndex = queue_family;
+        create_info.queueCount = 1;
+        create_info.pQueuePriorities = &queue_priority;
+        queue_create_infos.push_back(create_info);
+    }
 
     VkPhysicalDeviceFeatures device_features = {};
 
     VkDeviceCreateInfo create_info = {};
     create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
-    create_info.pQueueCreateInfos = &queue_create_info;
+    create_info.pQueueCreateInfos = queue_create_infos.data();
     create_info.queueCreateInfoCount = 1;
     create_info.pEnabledFeatures = &device_features;
+    create_info.enabledExtensionCount = static_cast<uint32_t>(DEVICE_EXTENCIONS.size());
+    create_info.ppEnabledExtensionNames = DEVICE_EXTENCIONS.data();
 
     if (ENABLE_VALIDATION_LAYERS)
     {
@@ -158,7 +208,8 @@ void HelloTriangleApplication::create_logical_device()
         throw std::runtime_error("Failed to create logical device!");
     }
 
-    vkGetDeviceQueue(m_device, family_indeces.m_graphics_family.value(), 0, &m_device_queue);
+    vkGetDeviceQueue(m_device, family_indeces.m_graphics_family.value(), 0, &m_graphical_queue);
+    vkGetDeviceQueue(m_device, family_indeces.m_present_family.value(), 0, &m_present_queue);
 }
 
 void HelloTriangleApplication::execute_main_loop()
@@ -251,8 +302,36 @@ bool HelloTriangleApplication::check_validation_layers_support()
 
 bool HelloTriangleApplication::check_device_suitability(VkPhysicalDevice device)
 {
-    QueueFamilyIndex indeces = find_queue_families(device);
-    return indeces.is_index_complete();
+    auto indeces = find_queue_families(device);
+
+    bool extension_supported = check_device_extensions_support(device);
+
+    bool swap_chain_good = false;
+
+    if (extension_supported)
+    {
+        auto details = query_swapchain_support(device);
+        swap_chain_good = (!details.m_formats.empty() && !details.m_present_modes.empty());
+    }
+
+    return indeces.is_index_complete() && extension_supported && swap_chain_good;
+}
+
+bool HelloTriangleApplication::check_device_extensions_support(VkPhysicalDevice device)
+{
+    uint32_t extensions_count;
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensions_count, nullptr);
+    vector<VkExtensionProperties> available_extensions(extensions_count);
+    vkEnumerateDeviceExtensionProperties(device, nullptr, &extensions_count, available_extensions.data());
+
+    set<string> required_extensions(DEVICE_EXTENCIONS.begin(), DEVICE_EXTENCIONS.end());
+
+    for (const auto& extension : available_extensions)
+    {
+        required_extensions.erase(extension.extensionName);
+    }
+
+    return required_extensions.empty();
 }
 
 vector<const char*> HelloTriangleApplication::get_required_extensions() {
