@@ -4,7 +4,7 @@ include(FindPkgConfig)
 
 set(CMAKE_CXX_STANDARD 17)
 
-add_definitions(-DGLFW_INCLUDE_VULKAN)
+add_definitions(-DGLFW_INCLUDE_VULKAN -DNOMINMAX)
 
 set(SOURCES_PATH  ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(INCLUDES_PATH ${SOURCES_PATH}/include)

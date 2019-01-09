@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <set>
+#include <algorithm>
 
 HelloTriangleApplication::HelloTriangleApplication()
     : m_gpu(VK_NULL_HANDLE)
