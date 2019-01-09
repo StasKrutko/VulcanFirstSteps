@@ -37,6 +37,8 @@ void HelloTriangleApplication::init_vulkan()
     create_KHR_surface();
     pick_graphic_card();
     create_logical_device();
+    create_swap_chain();
+    create_image_views();
 }
 
 void HelloTriangleApplication::init_setup_callback()
@@ -161,6 +163,34 @@ VkSurfaceFormatKHR HelloTriangleApplication::choose_swap_surface_format(const ve
     return available_formats[0];
 }
 
+VkPresentModeKHR HelloTriangleApplication::choose_swapchain_present_mode(const vector<VkPresentModeKHR> &available_presend_modes)
+{
+    for (const auto& mode : available_presend_modes)
+    {
+        if (mode == VK_PRESENT_MODE_MAILBOX_KHR && mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+        {
+            return mode;
+        }
+    }
+    return VK_PRESENT_MODE_FIFO_KHR;
+}
+
+VkExtent2D HelloTriangleApplication::choose_swapchain_extent(const VkSurfaceCapabilitiesKHR &capabilities)
+{
+    if (capabilities.currentExtent.width != numeric_limits<uint32_t>::max())
+    {
+        return capabilities.currentExtent;
+    }
+    else
+    {
+        VkExtent2D actual_extent = {WINDOW_WIDTH, WINDOW_HEIGHT};
+        actual_extent.width = max(capabilities.minImageExtent.width, min(capabilities.maxImageExtent.width, actual_extent.width));
+        actual_extent.height = max(capabilities.minImageExtent.height, min(capabilities.maxImageExtent.height, actual_extent.height));
+
+        return actual_extent;
+    }
+}
+
 void HelloTriangleApplication::create_logical_device()
 {
     auto family_indeces = find_queue_families(m_gpu);
@@ -212,6 +242,100 @@ void HelloTriangleApplication::create_logical_device()
     vkGetDeviceQueue(m_device, family_indeces.m_present_family.value(), 0, &m_present_queue);
 }
 
+void HelloTriangleApplication::create_swap_chain()
+{
+    SwapChainSupportDetails swap_chain_support = query_swapchain_support(m_gpu);
+    VkSurfaceFormatKHR surface_format = choose_swap_surface_format(swap_chain_support.m_formats);
+    VkPresentModeKHR presend_mode = choose_swapchain_present_mode(swap_chain_support.m_present_modes);
+    VkExtent2D extent = choose_swapchain_extent(swap_chain_support.m_capabilities);
+
+    uint32_t queue_length = swap_chain_support.m_capabilities.minImageCount + 1;
+    if (swap_chain_support.m_capabilities.maxImageCount > 0 && queue_length > swap_chain_support.m_capabilities.maxImageCount)
+    {
+        queue_length = swap_chain_support.m_capabilities.maxImageCount;
+    }
+
+    VkSwapchainCreateInfoKHR create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
+    create_info.surface = m_surface;
+    create_info.minImageCount = queue_length;
+    create_info.imageFormat = surface_format.format;
+    create_info.imageColorSpace = surface_format.colorSpace;
+    create_info.imageExtent = extent;
+    create_info.imageArrayLayers = 1;
+    create_info.imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+
+    QueueFamilyIndex indeces = find_queue_families(m_gpu);
+
+    if (!indeces.is_index_complete())
+    {
+        cerr << "Creating swap chain - family indeces in not complete!" << endl;
+    }
+    uint32_t queue_family_indeces[] = {indeces.m_graphics_family.value(), indeces.m_present_family.value()};
+
+    if(indeces.m_graphics_family != indeces.m_present_family)
+    {
+        create_info.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+        create_info.queueFamilyIndexCount = 2;
+        create_info.pQueueFamilyIndices = queue_family_indeces;
+    }
+    else
+    {
+        create_info.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        create_info.queueFamilyIndexCount = 0;     //Optional
+        create_info.pQueueFamilyIndices = nullptr; //Optional
+    }
+    create_info.preTransform = swap_chain_support.m_capabilities.currentTransform;
+    create_info.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
+    create_info.presentMode = presend_mode;
+    create_info.clipped = VK_TRUE;
+    create_info.oldSwapchain = nullptr;
+
+    if (vkCreateSwapchainKHR(m_device, &create_info, nullptr, &m_swapchain) != VK_SUCCESS)
+    {
+        throw runtime_error("Failed to create swapchain!");
+    }
+
+    m_sch_image_format = surface_format.format;
+    m_sch_extent = extent;
+
+    uint32_t swapchain_images_count;
+    vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchain_images_count, nullptr);
+    m_sch_images.resize(swapchain_images_count);
+    vkGetSwapchainImagesKHR(m_device, m_swapchain, &swapchain_images_count, m_sch_images.data());
+}
+
+void HelloTriangleApplication::create_image_views()
+{
+    m_sch_image_views.resize(m_sch_images.size());
+
+    for (size_t i = 0; i < m_sch_images.size(); ++i)
+    {
+        VkImageViewCreateInfo create_info = {};
+        create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+        create_info.image = m_sch_images[i];
+
+        create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+        create_info.format = m_sch_image_format;
+
+        create_info.components.r = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.components.g = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.components.b = VK_COMPONENT_SWIZZLE_IDENTITY;
+        create_info.components.a = VK_COMPONENT_SWIZZLE_IDENTITY;
+
+        create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        create_info.subresourceRange.baseMipLevel = 0;
+        create_info.subresourceRange.levelCount = 1;
+        create_info.subresourceRange.baseArrayLayer = 0;
+        create_info.subresourceRange.layerCount = 1;
+
+        if (vkCreateImageView(m_device, &create_info, nullptr, &m_sch_image_views[i]) != VK_SUCCESS)
+        {
+            throw runtime_error("Failed to create image view!");
+        }
+    }
+}
+
 void HelloTriangleApplication::execute_main_loop()
 {
     while (!glfwWindowShouldClose(m_window))
@@ -222,6 +346,11 @@ void HelloTriangleApplication::execute_main_loop()
 
 void HelloTriangleApplication::cleanup()
 {
+    for (const auto& image_view : m_sch_image_views)
+    {
+        vkDestroyImageView(m_device, image_view, nullptr);
+    }
+    vkDestroySwapchainKHR(m_device, m_swapchain, nullptr);
     vkDestroyDevice(m_device, nullptr);
     if (ENABLE_VALIDATION_LAYERS)
     {
