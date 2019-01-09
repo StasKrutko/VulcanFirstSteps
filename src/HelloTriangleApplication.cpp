@@ -137,7 +137,7 @@ HelloTriangleApplication::SwapChainSupportDetails HelloTriangleApplication::quer
 
     if (present_modes_count != 0)
     {
-        details.m_present_modes.resize(formats_count);
+        details.m_present_modes.resize(present_modes_count);
         vkGetPhysicalDeviceSurfacePresentModesKHR(device, m_surface, &present_modes_count, details.m_present_modes.data());
     }
 
