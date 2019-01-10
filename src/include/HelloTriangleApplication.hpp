@@ -66,6 +66,7 @@ private:
     void create_logical_device();
     void create_swap_chain();
     void create_image_views();
+    void create_graphics_pipeline();
     void execute_main_loop();
     void cleanup();
 
@@ -78,6 +79,7 @@ private:
     VkSurfaceFormatKHR choose_swap_surface_format(const vector<VkSurfaceFormatKHR>& available_formats);
     VkPresentModeKHR   choose_swapchain_present_mode(const vector<VkPresentModeKHR>& available_presend_modes);
     VkExtent2D         choose_swapchain_extent(const VkSurfaceCapabilitiesKHR& capabilities);
+    VkShaderModule     create_shader_module(const string &shader);
 
     vector<const char*> get_required_extensions();
     VkResult create_debug_utils_messenger_EXT(VkInstance instance,

@@ -6,9 +6,10 @@
 #include <cstring>
 #include <set>
 #include <algorithm>
+#include "utils.hpp"
 
 HelloTriangleApplication::HelloTriangleApplication()
-    : m_gpu(VK_NULL_HANDLE)
+    : m_gpu(nullptr)
 {
 }
 
@@ -80,7 +81,7 @@ void HelloTriangleApplication::pick_graphic_card()
         }
     }
 
-    if (m_gpu == VK_NULL_HANDLE)
+    if (m_gpu == nullptr)
     {
         throw std::runtime_error("Could not find suitable physical device!");
     }
@@ -97,10 +98,10 @@ HelloTriangleApplication::QueueFamilyIndex HelloTriangleApplication::find_queue_
     vkGetPhysicalDeviceQueueFamilyProperties(device, &queue_family_count, queue_families.data());
 
 
-    for (int i = 0; i < queue_families.size(); ++i)
+    for (size_t i = 0; i < queue_families.size(); ++i)
     {
         VkBool32 present_support = false;
-        if (vkGetPhysicalDeviceSurfaceSupportKHR(device, i, m_surface, &present_support) != VK_SUCCESS)
+        if (vkGetPhysicalDeviceSurfaceSupportKHR(device, static_cast<uint32_t>(i), m_surface, &present_support) != VK_SUCCESS)
         {
             throw std::runtime_error("Failed to check for surface compatability!");
         }
@@ -168,7 +169,7 @@ VkPresentModeKHR HelloTriangleApplication::choose_swapchain_present_mode(const v
 {
     for (const auto& mode : available_presend_modes)
     {
-        if (mode == VK_PRESENT_MODE_MAILBOX_KHR && mode == VK_PRESENT_MODE_IMMEDIATE_KHR)
+        if ((mode == VK_PRESENT_MODE_MAILBOX_KHR) || (mode == VK_PRESENT_MODE_IMMEDIATE_KHR))
         {
             return mode;
         }
@@ -190,6 +191,23 @@ VkExtent2D HelloTriangleApplication::choose_swapchain_extent(const VkSurfaceCapa
 
         return actual_extent;
     }
+}
+
+VkShaderModule HelloTriangleApplication::create_shader_module(const string& path)
+{
+    VkShaderModule module;
+
+    auto shader = read_file(path);
+    VkShaderModuleCreateInfo create_info = {};
+    create_info.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+    create_info.codeSize = shader.size();
+    create_info.pCode = reinterpret_cast<const uint32_t*>(shader.data());
+
+    if (vkCreateShaderModule(m_device,&create_info,nullptr, &module) != VK_SUCCESS)
+    {
+        throw runtime_error("Failed to create shader module!");
+    }
+    return module;
 }
 
 void HelloTriangleApplication::create_logical_device()
@@ -335,6 +353,51 @@ void HelloTriangleApplication::create_image_views()
             throw runtime_error("Failed to create image view!");
         }
     }
+}
+
+void HelloTriangleApplication::create_graphics_pipeline()
+{
+    auto vert_module = create_shader_module("shaders/Triangle_vert.spv");
+    auto frag_module = create_shader_module("shaders/Triangle_frag.spv");
+
+    vkDestroyShaderModule(m_device, vert_module, nullptr);
+    vkDestroyShaderModule(m_device, frag_module, nullptr);
+
+    VkPipelineShaderStageCreateInfo shader_stages[2] = {};
+    VkPipelineShaderStageCreateInfo* vertex_shader_info = &(shader_stages[0]);
+    VkPipelineShaderStageCreateInfo* fragment_shader_info = &(shader_stages[0]);
+
+    vertex_shader_info->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    vertex_shader_info->stage = VK_SHADER_STAGE_VERTEX_BIT;
+    vertex_shader_info->module = vert_module;
+    vertex_shader_info->pName = "main";
+
+    fragment_shader_info->sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+    fragment_shader_info->stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+    fragment_shader_info->module = frag_module;
+    fragment_shader_info->pName = "main";
+
+    VkPipelineVertexInputStateCreateInfo vertext_input_info = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO};
+    vertext_input_info.vertexBindingDescriptionCount = 0;
+    vertext_input_info.pVertexBindingDescriptions = nullptr;
+    vertext_input_info.vertexAttributeDescriptionCount = 0;
+    vertext_input_info.pVertexAttributeDescriptions = nullptr;
+
+    VkPipelineInputAssemblyStateCreateInfo input_assembly_info = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO};
+    input_assembly_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+    input_assembly_info.primitiveRestartEnable = VK_FALSE;
+
+    VkViewport viewport = {};
+    viewport.x = 0.0f;
+    viewport.y = 0.0f;
+    viewport.width = (float) m_sch_extent.width;
+    viewport.height = (float) m_sch_extent.height;
+    viewport.minDepth = 0.0f;
+    viewport.maxDepth = 0.0f;
+
+    VkRect2D scissor = {};
+    scissor.offset = {0,0};
+    scissor.extent = m_sch_extent;
 }
 
 void HelloTriangleApplication::execute_main_loop()
@@ -527,7 +590,7 @@ bool HelloTriangleApplication::compare_extensions(const char** glfw_extensions, 
 
     bool result = true;
 
-    for (int i = 0; i < glfw_extensions_count; ++i)
+    for (uint32_t i = 0; i < glfw_extensions_count; ++i)
     {
         bool extension_found = false;
         for (const auto& extension : vk_extensions)
@@ -556,10 +619,10 @@ bool HelloTriangleApplication::compare_extensions(const char** glfw_extensions, 
 }
 
 VKAPI_ATTR VkBool32 VKAPI_CALL HelloTriangleApplication::debug_callback(
-    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    VkDebugUtilsMessageSeverityFlagBitsEXT /*messageSeverity*/,
+    VkDebugUtilsMessageTypeFlagsEXT /*messageType*/,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-    void* pUserData) {
+    void* /*pUserData*/) {
 
     cerr << "validation layer: " << pCallbackData->pMessage << endl;
 

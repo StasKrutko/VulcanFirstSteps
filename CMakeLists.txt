@@ -8,6 +8,8 @@ add_definitions(-DGLFW_INCLUDE_VULKAN -DNOMINMAX)
 
 set(SOURCES_PATH  ${CMAKE_CURRENT_SOURCE_DIR}/src)
 set(INCLUDES_PATH ${SOURCES_PATH}/include)
+set(SHADERS_PATH  ${SOURCES_PATH}/shaders)
+set(UTILS_PATH  ${SOURCES_PATH}/utils)
 
 if(WIN32)
     add_definitions(-DVK_USE_PLATFORM_WIN32_KHR -DGLFW_EXPOSE_NATIVE_WIN32)
@@ -40,6 +42,9 @@ target_sources(${PROJECT_NAME}
     ${INCLUDES_PATH}/Getting_started.hpp
     ${INCLUDES_PATH}/HelloTriangleApplication.hpp
     ${PLATFORM_PATH}/HelloTriangle_platform.hpp
+    ${SHADERS_PATH}/Triangle.vert
+    ${SHADERS_PATH}/Triangle.frag
+    ${UTILS_PATH}/utils.hpp
 #    ${SOURCES_PATH}/TutorialExample.cpp
 )
 
@@ -47,6 +52,7 @@ target_include_directories(${PROJECT_NAME}
         PRIVATE
         ${INCLUDES_PATH}
         ${PLATFORM_PATH}
+        ${UTILS_PATH}
     )
 
 if(WIN32)
