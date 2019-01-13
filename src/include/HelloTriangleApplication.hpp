@@ -67,6 +67,8 @@ private:
     void create_swap_chain();
     void create_image_views();
     void create_graphics_pipeline();
+    void create_render_pass();
+    void create_framebuffers();
     void execute_main_loop();
     void cleanup();
 
@@ -112,6 +114,12 @@ private:
     VkExtent2D m_sch_extent;
 
     vector<VkImageView> m_sch_image_views;
+
+    VkRenderPass m_render_pass;
+    VkPipelineLayout m_pipeline_layout;
+    VkPipeline m_pipeline;
+
+    vector<VkFramebuffer> m_sch_framebuffers;
 };
 
 int call_HelloTriangleApplication();
